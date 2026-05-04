@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:name="com.igotitinc.demo.IGISampleApplication"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+        <service
+            android:name=".MyFirebaseMessagingService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+            </intent-filter>
+        </service>
+
+        <activity
+            android:name="com.igotitinc.demo.MainActivity"
+            android:exported="true"
+            android:theme="@style/AppTheme">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+
+                <action android:name="android.intent.action.VIEW" />
+            </intent-filter>
+        </activity>
+        <!-- Override SDK's IGIMainActivity manifest entry to apply
+             the host app's theme + launch mode. The fully-qualified
+             name moved from `igi_sdk.activities.IGIMainActivity`
+             (legacy 3.x — root package) to the canonical 4.0.0 path
+             below. `tools:replace="android:theme"` merges over the
+             SDK manifest's default theme so the host's branding
+             takes effect on this Activity. -->
+        <activity
+            android:name="com.igotitinc.sdk.ui.mainTabs.IGIMainActivity"
+            android:label="Metabilia"
+            android:theme="@style/AppTheme"
+            tools:replace="android:theme"
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait" />
+    </application>
+
+</manifest>

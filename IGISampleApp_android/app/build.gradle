@@ -1,0 +1,104 @@
+apply plugin: 'com.android.application'
+
+apply plugin: 'kotlin-android'
+
+apply plugin: 'com.google.gms.google-services'
+
+android {
+    buildFeatures {
+        viewBinding = true
+    }
+    signingConfigs {
+        debug {
+            storeFile rootProject.file('release_keystore')
+            storePassword 'android'
+            keyAlias 'android'
+            keyPassword 'android'
+        }
+        release {
+            storeFile rootProject.file('release_keystore')
+            storePassword 'android'
+            keyAlias 'android'
+            keyPassword 'android'
+        }
+    }
+    defaultConfig {
+        multiDexEnabled = true
+        applicationId 'com.igotitinc.demo'
+        compileSdk 36
+        minSdkVersion 26
+        targetSdkVersion 36
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility 1.8
+        targetCompatibility 1.8
+    }
+    namespace 'com.igotitinc.demo'
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    // Multiple deps now ship duplicate `META-INF/versions/9/OSGI-INF/MANIFEST.MF`
+    // files (notably `okhttp:5.3.2` and `jspecify:1.0.0`) — AGP refuses
+    // to merge without an explicit pick. Excluding the path drops it
+    // from the APK; OSGi metadata isn't used at runtime on Android.
+    // Mirrors the same exclude in the canonical SDK's host app at
+    // `android_sdk/app/build.gradle`.
+    packaging {
+        resources {
+            excludes += [
+                "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+            ]
+        }
+    }
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+
+    implementation 'androidx.core:core-ktx:1.17.0'
+
+    implementation platform('com.google.firebase:firebase-bom:34.9.0')
+    implementation 'com.google.firebase:firebase-messaging'
+
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'androidx.cardview:cardview:1.0.0'
+    implementation 'androidx.recyclerview:recyclerview:1.4.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
+    implementation 'androidx.multidex:multidex:2.0.1'
+    implementation 'androidx.preference:preference-ktx:1.2.1'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.2.0'
+    implementation 'androidx.browser:browser:1.9.0'
+
+    implementation 'com.squareup.picasso:picasso:2.8'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-scalars:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-moshi:2.9.0'
+    implementation 'com.pusher:pusher-java-client:2.4.4'
+    implementation 'com.stripe:stripe-android:22.8.0'
+    implementation 'com.google.android.material:material:1.13.0'
+
+    // The Kotlin + Compose canonical SDK, distributed through Maven
+    // Central. This is exactly the dep line a partner host adds —
+    // no PAT, no credentials, no extra repo block beyond
+    // `mavenCentral()` declared in the project-level build.gradle.
+    implementation 'io.metabilia:igi_sdk:4.0.0'
+}
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}

@@ -5,12 +5,6 @@ auctions, wishlist, mystery boxes, account history) into a host
 Android app as a Jetpack Compose surface. Distributed as an AAR via
 Maven (GitHub Packages).
 
-> **Companion guide for iOS:** see
-> [`Metabilia-io/igi_sdk_ios` → `README.md`](https://github.com/Metabilia-io/igi_sdk_ios/blob/main/README.md).
-> Both platforms expose the same public types, use byte-identical
-> analytics-event names and theming-token keys, and ship in lockstep
-> at the same `MAJOR.MINOR.PATCH` version (currently `4.0.0`).
-
 ## Requirements
 
 | | |
@@ -99,12 +93,11 @@ Register the Application class in your `AndroidManifest.xml`:
     ...>
 ```
 
-The three valid `IGIEnvironment` values are:
+The valid `IGIEnvironment` values are:
 
 | Environment | Constant |
 |---|---|
 | Development | `IGIEnvironment.DEVELOPMENT` |
-| Sandbox / Staging | `IGIEnvironment.SANDBOX` |
 | Production | `IGIEnvironment.PRODUCTION` |
 
 > **Legacy 3.x parity:** `IGIManager.getInstance()` is parameterless,
@@ -360,36 +353,6 @@ above:
 </application>
 ```
 
-## Deep links / Universal links
-
-Deep-link handling is host-owned (Branch SDK in our reference host;
-your app may use a different provider). The SDK does not register
-URL schemes or app-link intent filters. The single SDK touchpoint
-is forwarding the resolved item identifier:
-
-```kotlin
-// After Branch (or your URL handler) resolves the deep link to
-// an `event_item_id`:
-sdk.handleDeeplinkUrl(deeplink)
-```
-
-For pushes, `handleRemoteMessage` (see "Push notifications" above)
-covers the same routing.
-
-## Versioning
-
-`MAJOR.MINOR.PATCH` semver, with a build-number suffix
-(`+yyMMddNN`) baked into the AAR. `4.0.0` is the first release of
-the Kotlin-canonical SDK; prior `3.x` releases shipped the
-now-removed Java + XML implementation and are not source-compatible
-with `4.x`.
-
-Android and iOS ship in lockstep — the iOS counterpart
-(`Metabilia-io/igi_sdk_ios` SPM, library product `igi_sdk`) is
-tagged at the same `MAJOR.MINOR.PATCH` for every release, including
-`4.0.0`. Partners shipping both platforms should pin both at the
-same version.
-
 ## Migrating from 3.x to 4.0.0
 
 The 4.0.0 release replaces the Java + XML SDK that 3.x clients
@@ -498,7 +461,7 @@ the `IGIManagerCallback` construction syntax + the error type:
 ```diff
   IGIManager.getInstance().initialize(
       apiKey,
-      IGIManager.IGI_SDK_SANDBOX_MODE,
+      IGIManager.IGI_SDK_PRODUCTION_MODE,
       subDomain,
       this,
 -     IGIManagerCallback(function = { _, error: Error? ->
@@ -518,8 +481,8 @@ existing `error.localizedMessage` access keeps working since
 `Throwable` exposes that too. The `IGIManager.IGI_SDK_*_MODE`
 string constants are preserved on `IGIManager`'s companion in
 4.0.0 specifically so legacy call sites compile unchanged. New
-code can switch to the typed `IGIEnvironment.SANDBOX` enum (also
-accepted by an overload of `initialize`).
+code can switch to the typed `IGIEnvironment.PRODUCTION` enum
+(also accepted by an overload of `initialize`).
 
 #### 5. `IGIAnalyticsListener`
 
@@ -689,53 +652,22 @@ isn't reachable through `IGIMainActivity`'s tabs, file an issue
 on `Metabilia-io/igi_sdk_android` and we'll surface it as a
 public composable.
 
-### Behavior changes (no code edits required)
-
-| Layer | 3.x | 4.0.0 |
-|---|---|---|
-| Token storage | Plaintext `SharedPreferences` (`IGotItUserSessionKey`) | `EncryptedSharedPreferences` via `IGITokenStore`. One-shot migration on first 4.x launch reads the legacy key, copies into Encrypted store, deletes plaintext. |
-| HTTP auth | `?access_token=…` query parameter | `Authorization: <token>` header (raw token, no `Bearer ` prefix). |
-| Identity headers | `igi_sdk_version` (underscores) | `igi-sdk-version` (hyphens). nginx and similar proxies strip underscore-named headers by default. |
-| Environments | Two: staging + prod | **Three**: `IGIEnvironment.DEVELOPMENT`, `.SANDBOX`, `.PRODUCTION`. |
-| UI implementation | `Fragment` + XML | Jetpack Compose. `IGIMainActivity` wraps it for `Intent`-style hosting. |
-
-### APIs that haven't changed (call sites unchanged after the import update)
-
-- `IGIManager.getInstance()` — parameterless singleton accessor
-- `IGIManager.getInstance().setAnalyticsListener(...)`
-- `IGIManager.getInstance().setDeviceToken(...)`
-- `IGIManager.getInstance().handleRemoteMessage(...) → Boolean`
-- `IGIManager.getInstance().handleDeeplinkUrl(...)`
-- `IGIManager.IGI_SDK_DEV_MODE` / `IGI_SDK_SANDBOX_MODE` / `IGI_SDK_PRODUCTION_MODE` string constants (preserved on the companion for legacy compat)
-- 70+ legacy callback-style methods on `IGIManager` (`login`, `bidOnItem`, `signUp`, etc.) — preserved via the callback-style facade so legacy call sites keep compiling.
-
 ### Validation reference
 
 A complete worked migration from a real 3.x integration is in
-`IGISampleApp_android/` (in the parent workspace). Six files
-modified — `IGISampleApplication.kt`, `MainActivity.kt`,
-`MainFragment.kt`, `AnalyticsManager.kt`,
-`MyFirebaseMessagingService.kt`, `AndroidManifest.xml` — plus the
-`packaging { ... }` block + Maven dependency line in
-`app/build.gradle` and the credentials swap in the root
-`build.gradle`. Cover every change in this guide.
+[`IGISampleApp_android/`](./IGISampleApp_android/) — sample app
+shipped alongside the SDK in this repo, consuming
+`io.metabilia:igi_sdk:4.0.0` via Maven Central (the same way
+partner hosts integrate). Six files modified —
+`IGISampleApplication.kt`, `MainActivity.kt`, `MainFragment.kt`,
+`AnalyticsManager.kt`, `MyFirebaseMessagingService.kt`,
+`AndroidManifest.xml` — plus the `packaging { ... }` block +
+Maven dependency line in `app/build.gradle` and the
+`mavenCentral()`-only repo block in the root `build.gradle`.
+Cover every change in this guide.
 
 ## Reporting issues
 
 For SDK-level bugs / feature requests, file an issue on
 `Metabilia-io/igi_sdk_android`. For credentials, environment
 access, or API-key provisioning, contact Metabilia ops directly.
-
----
-
-> **Security note (publishers only):** consumers don't need any
-> credentials — Maven Central downloads are anonymous. Publishing
-> the SDK to Maven Central does require Sonatype Central Portal
-> tokens + a GPG signing keypair; both belong in
-> `~/.gradle/gradle.properties` (gitignored), never in any file
-> committed to the repo. During the GitHub-Packages era (pre-Phase D),
-> two leaked GitHub PATs were rotated during the Android distribution
-> prep (2026-05-02 — one in the legacy SDK module's `build.gradle`,
-> one in `IGISampleApp_android/build.gradle`); both files use the
-> env-var pattern now and the PATs themselves are obsolete since the
-> repo coordinate moved to `mavenCentral()` in Phase D.

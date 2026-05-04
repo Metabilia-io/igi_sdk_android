@@ -1,0 +1,115 @@
+{
+  "project_info": {
+    "project_number": "712053162848",
+    "firebase_url": "https://igotit-d3868.firebaseio.com",
+    "project_id": "igotit-d3868",
+    "storage_bucket": "igotit-d3868.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:712053162848:android:20c7c97959ab4d6a165405",
+        "android_client_info": {
+          "package_name": "com.igotitinc.demo"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "712053162848-49t9ujqs2me8blcj63em7inq4veqji10.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA7dDANIj44FZY4hqbmYzk8GE9S-rt11Xc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "712053162848-49t9ujqs2me8blcj63em7inq4veqji10.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "712053162848-876lomqo92qfcisjnl9iv41e74oi9966.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.igotitapp.igotitapp"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:712053162848:android:417521e61233f067",
+        "android_client_info": {
+          "package_name": "com.igotitinc.igotitapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "712053162848-35upjcsrirg13ovuauie524e25vb6o3d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.igotitinc.igotitapp",
+            "certificate_hash": "580837345c2899a02b7b4c5c878d8e7da39e7f23"
+          }
+        },
+        {
+          "client_id": "712053162848-o5bou8kd6s8ebc79khdv1eoj6c4hr9o9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.igotitinc.igotitapp",
+            "certificate_hash": "b0cc3284597256b0176a6395455212f607479629"
+          }
+        },
+        {
+          "client_id": "712053162848-q5o8bmi2fpphtt7eql3fdmasugvr84fd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.igotitinc.igotitapp",
+            "certificate_hash": "7aedf863040ea195578b8d383ddabf538255738d"
+          }
+        },
+        {
+          "client_id": "712053162848-sav6ubru9mok5evni63j875lt9c1d3hj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.igotitinc.igotitapp",
+            "certificate_hash": "d3a9d6170ba11c0ac9bbabcc2101e3de5b123277"
+          }
+        },
+        {
+          "client_id": "712053162848-49t9ujqs2me8blcj63em7inq4veqji10.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA7dDANIj44FZY4hqbmYzk8GE9S-rt11Xc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "712053162848-49t9ujqs2me8blcj63em7inq4veqji10.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "712053162848-876lomqo92qfcisjnl9iv41e74oi9966.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.igotitapp.igotitapp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

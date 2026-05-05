@@ -33,7 +33,7 @@ allprojects {
 
 // app/build.gradle
 dependencies {
-    implementation 'io.metabilia:igi_sdk:4.0.0'
+    implementation 'io.metabilia:igi_sdk:4.0.1'
     // ...your existing deps (Firebase, Branch, etc.)
 }
 ```
@@ -422,49 +422,9 @@ same product palette per team — declared in
 </application>
 ```
 
-## Deep links / Universal links
+## Migrating from 3.x to 4.x
 
-Deep-link handling is host-owned (Branch SDK in our reference host;
-your app may use a different provider). The SDK does not register
-URL schemes or app-link intent filters. The single SDK touchpoint
-is forwarding the resolved item identifier:
-
-```kotlin
-// After Branch (or your URL handler) resolves the deep link to
-// an `event_item_id`:
-sdk.handleDeeplinkUrl(deeplink)
-```
-
-For pushes, `handleRemoteMessage` (see "Push notifications" above)
-covers the same routing.
-
-## Versioning
-
-`MAJOR.MINOR.PATCH` semver, with a build-number suffix
-(`+yyMMddNN`) baked into the AAR. `4.0.0` is the first release of
-the Kotlin-canonical SDK; prior `3.x` releases shipped the
-now-removed Java + XML implementation and are not source-compatible
-with `4.x`.
-
-Cross-platform features ship at the same `MAJOR.MINOR.PATCH` on
-Android and iOS. Platform-only patches may diverge by a PATCH
-version between releases — partners shipping both platforms pin
-each platform at its own latest:
-
-| Platform | Latest |
-|---|---|
-| Android (this SDK) | `io.metabilia:igi_sdk:4.0.1` on Maven Central |
-| iOS  | `Metabilia-io/igi_sdk_ios` at `4.0.0` (SwiftPM) |
-
-`4.0.1` is an Android-only patch landing the host-theme bridge in
-`IGIMainActivity` (see **Theming** above). The iOS SDK's theming
-mechanism is unaffected, so iOS stays at `4.0.0`. The next
-cross-platform feature will rejoin the platforms at the same
-version.
-
-## Migrating from 3.x to 4.0.0
-
-The 4.0.0 release replaces the Java + XML SDK that 3.x clients
+The 4.x release line replaces the Java + XML SDK that 3.x clients
 shipped against with a Kotlin + Jetpack Compose rewrite. The
 public API surface deliberately keeps the legacy 3.x entry-point
 shapes — `IGIManager.getInstance()` is still parameterless, the
@@ -476,12 +436,12 @@ Most call sites need only an import-package update + a small
 
 ### Quick checklist
 
-- [ ] Update Maven dependency: `com.github.Metabilia-io:igi_sdk_android:3.x.x` → `io.metabilia:igi_sdk:4.0.0`. **Repository changed too** — drop the `maven { url "https://maven.pkg.github.com/..." }` block and use `mavenCentral()` instead. The GitHub Personal Access Token is no longer needed.
-- [ ] Remove `gpr.user` / `gpr.key` (or any GitHub PAT credentials) from `~/.gradle/gradle.properties` if they were only used to download the SDK — `4.0.0` doesn't need them. Safe to keep them if other dependencies still pull from GitHub Packages.
+- [ ] Update Maven dependency: `com.github.Metabilia-io:igi_sdk_android:3.x.x` → `io.metabilia:igi_sdk:4.x.x`. **Repository changed too** — drop the `maven { url "https://maven.pkg.github.com/..." }` block and use `mavenCentral()` instead. The GitHub Personal Access Token is no longer needed.
+- [ ] Remove `gpr.user` / `gpr.key` (or any GitHub PAT credentials) from `~/.gradle/gradle.properties` if they were only used to download the SDK — `4.x.x` doesn't need them. Safe to keep them if other dependencies still pull from GitHub Packages.
 - [ ] Update Kotlin imports: `igi_sdk.*` → `com.igotitinc.sdk.*`. Specific sub-packages too: `igi_sdk.activities.IGIMainActivity` → `com.igotitinc.sdk.ui.mainTabs.IGIMainActivity`, `igi_sdk.fragments.IGIManagerCallback` → `com.igotitinc.sdk.IGIManagerCallback`, `igi_sdk.model.IGIAnalyticsListener` → `com.igotitinc.sdk.analytics.IGIAnalyticsListener`.
 - [ ] Same path update in your `AndroidManifest.xml` for the `IGIMainActivity` declaration if you have one.
 - [ ] Replace `IGIManagerCallback(function = { ... })` constructor calls with bare SAM lambdas: `IGIManagerCallback { ... }`. The error parameter type is now `Throwable?` instead of `Error?`.
-- [ ] If you implement `IGIAnalyticsListener`, replace placeholder `p0`/`p1` parameter names with the typed names + drop the `?` from primitives (legacy was `String?`/`Double?`/`Int?`; 4.0.0 is non-nullable). The `trackEvent` method's payload type changed from `Bundle?` to `Map<String, Any>`.
+- [ ] If you implement `IGIAnalyticsListener`, replace placeholder `p0`/`p1` parameter names with the typed names + drop the `?` from primitives (legacy was `String?`/`Double?`/`Int?`; 4.x.x is non-nullable). The `trackEvent` method's payload type changed from `Bundle?` to `Map<String, Any>`.
 - [ ] If you use `IGIManager.getInstance().privacyStatus` (Java property access) or `IGI_PRIVACY_STATUS.IGI_PRIVACY_STATUS_OPT_IN` constants, switch to the `getPrivacyStatus()` / `setPrivacyStatus(IGIPrivacyStatus.OptIn)` method + enum form.
 - [ ] If you use `IGIManager.shouldHandleRemoteMessage(data)` as a static call, change to `IGIManager.getInstance().shouldHandleRemoteMessage(data)` — it's an instance method now.
 - [ ] If you use `IGIManager.getInstance().isIGIPayload(extras)` (took a Bundle), it was removed. Project the Bundle to `Map<String, String>` and call `shouldHandleRemoteMessage(map)` instead — see code snippet below.
@@ -496,8 +456,11 @@ Most call sites need only an import-package update + a small
 ```diff
   // app/build.gradle
 - implementation 'com.github.Metabilia-io:igi_sdk_android:3.4.2'
-+ implementation 'io.metabilia:igi_sdk:4.0.0'
++ implementation 'io.metabilia:igi_sdk:4.x.x'
 ```
+
+(Use the latest `4.x` published on Maven Central — see
+**Install** above for the current version.)
 
 ```diff
   // Project-level build.gradle
@@ -589,7 +552,7 @@ from the legacy SDK's `Error` class to standard `Throwable?` —
 existing `error.localizedMessage` access keeps working since
 `Throwable` exposes that too. The `IGIManager.IGI_SDK_*_MODE`
 string constants are preserved on `IGIManager`'s companion in
-4.0.0 specifically so legacy call sites compile unchanged. New
+4.x specifically so legacy call sites compile unchanged. New
 code can switch to the typed `IGIEnvironment.PRODUCTION` enum
 (also accepted by an overload of `initialize`).
 
@@ -630,7 +593,7 @@ Three things changed:
    Java `.class` file lost parameter names; Kotlin sees the
    actual names now.
 2. **Non-nullable types.** Every `String` / `Double` / `Int`
-   argument is non-null in 4.0.0. The SDK guarantees these are
+   argument is non-null in 4.x. The SDK guarantees these are
    populated before dispatching, so no defensive null-checks
    needed in the listener.
 3. **`trackEvent` payload type.** `Bundle?` → `Map<String, Any>`.
@@ -669,12 +632,12 @@ matching iOS naming.
 
 Legacy SDK exposed `IGIManager.getInstance().isIGIPayload(extras)`
 which took a `Bundle` — partners called it from the activity that
-caught the cold-start tap intent. The 4.0.0 SDK exposes
+caught the cold-start tap intent. The 4.x SDK exposes
 `shouldHandleRemoteMessage(data: Map<String, String>?)` instead
 (matches iOS `shouldHandleRemodeMessage`); the `Bundle` overload
 is gone.
 
-The simpler 4.0.0 path: declare the
+The simpler 4.x path: declare the
 `<action android:name="IGI_PUSH_DEEPLINK" />` intent-filter
 **directly on `IGIMainActivity`** in your manifest. `IGIMainActivity`
 inspects its own intent extras in `onCreate` and calls
@@ -751,57 +714,19 @@ to merge automatically:
   }
 ```
 
-### Activity / Fragment hosting (if you embedded individual screens)
-
-The legacy SDK shipped 46 `Fragment` subclasses you could embed in
-your host's `FragmentManager`. The 4.0.0 SDK ships:
-
-- **`IGIMainActivity`** — drop-in `Intent`-launchable container,
-  same name as the legacy entry point (only the package path
-  changes per the import diff above).
-- **`IGIMainTabs` composable** — the same UI as a Compose
-  destination embeddable inside your own `NavHost`.
-
-If you were calling individual Fragment subclasses by name from
-your host, those entry points don't exist as Fragments anymore —
-they're internal Compose screens reached through in-SDK
-navigation. Most legacy hosts only used `IGIMainActivity` (the
-common case), so the migration is just the rename + intent pass-
-through. If you do depend on a specific screen entry point that
-isn't reachable through `IGIMainActivity`'s tabs, file an issue
-on `Metabilia-io/igi_sdk_android` and we'll surface it as a
-public composable.
-
-### Behavior changes (no code edits required)
-
-| Layer | 3.x | 4.0.0 |
-|---|---|---|
-| Token storage | Plaintext `SharedPreferences` (`IGotItUserSessionKey`) | `EncryptedSharedPreferences` via `IGITokenStore`. One-shot migration on first 4.x launch reads the legacy key, copies into Encrypted store, deletes plaintext. |
-| HTTP auth | `?access_token=…` query parameter | `Authorization: <token>` header (raw token, no `Bearer ` prefix). |
-| Identity headers | `igi_sdk_version` (underscores) | `igi-sdk-version` (hyphens). nginx and similar proxies strip underscore-named headers by default. |
-| Environments | `staging` / `prod` string flags | Typed enum `IGIEnvironment.DEVELOPMENT` / `.PRODUCTION` (legacy `IGI_SDK_*_MODE` string constants preserved on `IGIManager` for compat). |
-| UI implementation | `Fragment` + XML | Jetpack Compose. `IGIMainActivity` wraps it for `Intent`-style hosting. |
-
-### APIs that haven't changed (call sites unchanged after the import update)
-
-- `IGIManager.getInstance()` — parameterless singleton accessor
-- `IGIManager.getInstance().setAnalyticsListener(...)`
-- `IGIManager.getInstance().setDeviceToken(...)`
-- `IGIManager.getInstance().handleRemoteMessage(...) → Boolean`
-- `IGIManager.getInstance().handleDeeplinkUrl(...)`
-- `IGIManager.IGI_SDK_DEV_MODE` / `IGI_SDK_PRODUCTION_MODE` string constants (preserved on the companion for legacy compat)
-- 70+ legacy callback-style methods on `IGIManager` (`login`, `bidOnItem`, `signUp`, etc.) — preserved via the callback-style facade so legacy call sites keep compiling.
-
 ### Validation reference
 
 A complete worked migration from a real 3.x integration is in
-`IGISampleApp_android/` (in the parent workspace). Six files
-modified — `IGISampleApplication.kt`, `MainActivity.kt`,
-`MainFragment.kt`, `AnalyticsManager.kt`,
-`MyFirebaseMessagingService.kt`, `AndroidManifest.xml` — plus the
-`packaging { ... }` block + Maven dependency line in
-`app/build.gradle` and the credentials swap in the root
-`build.gradle`. Cover every change in this guide.
+[`IGISampleApp_android/`](./IGISampleApp_android/) — sample app
+shipped alongside the SDK in this repo, consuming
+`io.metabilia:igi_sdk:4.0.1` via Maven Central (the same way
+partner hosts integrate). Files modified —
+`IGISampleApplication.kt`, `MainActivity.kt`, `MainFragment.kt`,
+`AnalyticsManager.kt`, `MyFirebaseMessagingService.kt`,
+`AndroidManifest.xml` — plus the `packaging { ... }` block + the
+`io.metabilia:igi_sdk` dependency line in `app/build.gradle` and
+the `mavenCentral()`-only repo block in the root `build.gradle`.
+Cover every change in this guide.
 
 ## Reporting issues
 

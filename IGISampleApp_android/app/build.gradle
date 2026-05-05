@@ -95,7 +95,7 @@ dependencies {
     // Central. This is exactly the dep line a partner host adds —
     // no PAT, no credentials, no extra repo block beyond
     // `mavenCentral()` declared in the project-level build.gradle.
-    implementation 'io.metabilia:igi_sdk:4.0.0'
+    implementation 'io.metabilia:igi_sdk:4.0.1'
 }
 java {
     toolchain {

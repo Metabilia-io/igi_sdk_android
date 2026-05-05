@@ -5,6 +5,14 @@ auctions, wishlist, mystery boxes, account history) into a host
 Android app as a Jetpack Compose surface. Distributed as an AAR via
 Maven (GitHub Packages).
 
+> **Companion guide for iOS:** see
+> [`Metabilia-io/igi_sdk_ios` → `README.md`](https://github.com/Metabilia-io/igi_sdk_ios/blob/main/README.md).
+> Both platforms expose the same public types and use byte-identical
+> analytics-event names and theming-token keys. Cross-platform
+> features ship at the same `MAJOR.MINOR.PATCH` on both sides;
+> platform-only patches may diverge by a PATCH version.
+> See **Versioning** below for the current version on each platform.
+
 ## Requirements
 
 | | |
@@ -93,11 +101,12 @@ Register the Application class in your `AndroidManifest.xml`:
     ...>
 ```
 
-The valid `IGIEnvironment` values are:
+The three valid `IGIEnvironment` values are:
 
 | Environment | Constant |
 |---|---|
 | Development | `IGIEnvironment.DEVELOPMENT` |
+| Sandbox / Staging | `IGIEnvironment.SANDBOX` |
 | Production | `IGIEnvironment.PRODUCTION` |
 
 > **Legacy 3.x parity:** `IGIManager.getInstance()` is parameterless,
@@ -107,75 +116,116 @@ The valid `IGIEnvironment` values are:
 
 ## Hosting the SDK UI
 
-Two ways to surface the SDK's UI in your host app:
-
-### Option A — Compose: embed `IGIMainTabs`
-
-For hosts already on Compose. Wrap in your own `MaterialTheme` with
-your team's branded colors — the SDK reads
-`MaterialTheme.colorScheme.*` tokens directly:
+`IGIMainActivity` is the SDK's entry point — a 5-tab shell (events,
+wishlist, mystery boxes, account, etc.) with all intra-SDK
+navigation handled internally. Launch it via `Intent` from your
+host wherever in your flow makes sense (post-login, splash, button
+tap, push deep-link receiver — see **Push notifications** below):
 
 ```kotlin
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.material3.MaterialTheme
-import com.igotitinc.sdk.IGIManager
-import com.igotitinc.sdk.ui.mainTabs.IGIMainTabs
-import com.igotitinc.sdk.ui.mainTabs.IGIMainTabsCallbacks
-
-class MainActivity : ComponentActivity() {
-
-    private val sdk by lazy { IGIManager.getInstance().sdk }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            MaterialTheme(colorScheme = myTeamColorScheme) {
-                IGIMainTabs(
-                    callbacks = IGIMainTabsCallbacks(
-                        onClose = { finish() },
-                        // ...other host-routed lambdas
-                    ),
-                )
-            }
-        }
-    }
-}
-```
-
-`IGIMainTabsCallbacks` is a typed inventory of every lambda the
-SDK routes back to the host (close, deep-link out, sign-out, etc.).
-KDoc on each field describes where the equivalent surfaces on iOS.
-
-### Option B — UIKit-equivalent: launch `IGIMainActivity` via Intent
-
-For hosts that want the SDK to own its own Activity (drop-in
-pattern matching the legacy Java SDK):
-
-```kotlin
+import android.content.Intent
 import com.igotitinc.sdk.ui.mainTabs.IGIMainActivity
 
 startActivity(Intent(this, IGIMainActivity::class.java))
 ```
 
-`IGIMainActivity` is a plain `ComponentActivity` (no
-`@AndroidEntryPoint`); it owns the 5-tab shell + intra-SDK
-navigation. Mirrors iOS `IGIMainTabView` and the legacy Java SDK's
-`IGIMainActivity` so partners migrating from the legacy SDK keep
-their `Intent` call site intact.
+`IGIMainActivity` needs to be declared in your `AndroidManifest.xml`
+— the canonical declaration (with the push-deeplink intent-filter)
+is in **Required `AndroidManifest.xml`** below. It's a plain
+`ComponentActivity` (no `@AndroidEntryPoint`) so it works regardless
+of whether your host uses Hilt. Mirrors the iOS `IGIMainTabView`
+1:1 — partners shipping both platforms get the same SDK surface on
+each.
 
 ## Push notifications
 
-The SDK consumes FCM tokens to deliver item-update / auction
-realtime pushes. Wiring is host-owned because the partner already
-manages Firebase. The SDK only needs the FCM token forwarded once
-per session, plus the incoming `RemoteMessage` payloads handed
-through.
+Every IGI push notification is emitted server-side with
+`click_action = "IGI_PUSH_DEEPLINK"`. When the user taps the
+notification, Android dispatches an `Intent` with that action
+carrying the push payload as extras — the host catches the tap by
+declaring a matching intent-filter, and `IGIMainActivity` reads
+the extras to route the user straight to the right item-detail
+screen.
 
-**All three pieces are necessary** — missing any one silently
-degrades push delivery in a different scenario.
+Wiring is host-owned across four pieces:
 
-### 1. `FirebaseMessagingService` subclass
+### 1. Tap-routing via intent-filter (cold-start + warm taps)
+
+The simplest path is to declare the intent-filter directly on
+`IGIMainActivity` in your `AndroidManifest.xml`:
+
+```xml
+<activity
+    android:name="com.igotitinc.sdk.ui.mainTabs.IGIMainActivity"
+    android:exported="true">
+    <intent-filter>
+        <action android:name="IGI_PUSH_DEEPLINK" />
+        <category android:name="android.intent.category.DEFAULT" />
+    </intent-filter>
+</activity>
+```
+
+`IGIMainActivity.onCreate` inspects `intent.extras` automatically,
+calls `IGISdk.shouldHandleRemoteMessage(...)` / `handleRemoteMessage(...)`,
+and routes to the right screen — no glue code needed in your host.
+The SDK persists the user's auth via `EncryptedSharedPreferences`,
+so the launched session resumes without re-prompting.
+
+#### Optional: route through your own activity first
+
+If you need to intercept the tap before launching `IGIMainActivity`
+(custom auth check, analytics, conditional routing), declare the
+intent-filter on a router activity in your host instead, then
+forward the extras:
+
+```kotlin
+import android.content.Intent
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import com.igotitinc.sdk.IGIManager
+import com.igotitinc.sdk.ui.mainTabs.IGIMainActivity
+
+class PushTapRouterActivity : ComponentActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val extras = intent?.extras
+        if (extras != null) {
+            val data = extras.keySet()
+                .mapNotNull { key -> extras.getString(key)?.let { value -> key to value } }
+                .toMap()
+            if (IGIManager.getInstance().shouldHandleRemoteMessage(data)) {
+                // ...your custom pre-launch logic (auth check, analytics, ...).
+                // Then hand off to the SDK with extras forwarded:
+                startActivity(
+                    Intent(this, IGIMainActivity::class.java).putExtras(extras)
+                )
+            }
+        }
+        finish()
+    }
+}
+```
+
+```xml
+<activity
+    android:name=".PushTapRouterActivity"
+    android:exported="true"
+    android:noHistory="true">
+    <intent-filter>
+        <action android:name="IGI_PUSH_DEEPLINK" />
+        <category android:name="android.intent.category.DEFAULT" />
+    </intent-filter>
+</activity>
+```
+
+### 2. `FirebaseMessagingService` subclass (token + foreground delivery)
+
+The intent-filter above handles tap-routing, but partners still
+need an FCM service to (a) forward token rotations to the SDK,
+and (b) optionally hand foreground push payloads to
+`handleRemoteMessage` so the SDK updates internal state when a
+push arrives while the app is open.
 
 ```kotlin
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -200,8 +250,6 @@ class FirebaseMessagingForwarder : FirebaseMessagingService() {
 }
 ```
 
-Register in `AndroidManifest.xml`:
-
 ```xml
 <service
     android:name=".firebase.FirebaseMessagingForwarder"
@@ -212,7 +260,7 @@ Register in `AndroidManifest.xml`:
 </service>
 ```
 
-### 2. Active token fetch on every launch
+### 3. Active token fetch on every launch
 
 `onNewToken` only fires when the FCM token genuinely rotates, and
 Firebase caches tokens at the Google Play Services layer across app
@@ -225,7 +273,7 @@ Fetch explicitly in `Application.onCreate` (already shown in the
 init snippet above). `IGISdk.setDeviceToken` is idempotent and
 dedup-guarded — calling it on every launch is cheap.
 
-### 3. `POST_NOTIFICATIONS` runtime permission (Android 13+)
+### 4. `POST_NOTIFICATIONS` runtime permission (Android 13+)
 
 Required for any notification to render. Prompt the user at a
 sensible moment in your UX (post-login, post-onboarding, or first
@@ -304,37 +352,52 @@ IGIManager.getInstance().setAnalyticsListener(
 
 ## Theming
 
-The SDK never wraps itself in a theme — every composable reads
-`MaterialTheme.colorScheme.*` and `MaterialTheme.typography.*`
-tokens directly. Wrap `IGIMainTabs` (or the host activity rendering
-the SDK's UI) in your own `MaterialTheme`:
+**No SDK-side theme configuration needed.** `IGIMainActivity` reads
+the launched activity's Android XML theme — your host's
+`<application android:theme="@style/AppTheme">` (or per-activity
+override) — and bridges it into Compose's Material 3 `ColorScheme`
+automatically. Whatever colors you've declared in `themes.xml` /
+`colors.xml` for your own activities flow through to SDK screens.
 
-```kotlin
-val myTeamColorScheme = lightColorScheme(
-    primary = Color(0xFF002244),    // team primary
-    secondary = Color(0xFFC60C30),  // team secondary
-    onPrimary = Color.White,
-    background = Color.White,
-    surface = Color.White,
-    // ...
-)
+This matches the legacy Java IGI SDK's behavior: partners declare
+team branding in standard Android theme attributes, every screen
+(host's and SDK's) inherits from the same source.
 
-setContent {
-    MaterialTheme(colorScheme = myTeamColorScheme) {
-        IGIMainTabs(callbacks = ...)
-    }
-}
+### What attributes get picked up
+
+```xml
+<style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+    <item name="colorPrimary">@color/team_primary</item>      <!-- → MaterialTheme.colorScheme.primary -->
+    <item name="colorAccent">@color/team_accent</item>        <!-- → MaterialTheme.colorScheme.secondary (AppCompat fallback) -->
+    <item name="android:colorBackground">@color/team_bg</item>  <!-- → MaterialTheme.colorScheme.background -->
+</style>
 ```
 
-Cross-platform parity: the Android `MaterialTheme.colorScheme`
-mapping uses the same role names (`primary`, `secondary`,
-`onPrimary`, etc.) as the iOS `IGI_KEY_*_COLOR` theme dictionary
-keys. Both SDKs source from the same product palette per team.
+For richer mappings (Material 3's `onPrimary` / `surface` /
+`onSurface` / `error` / etc.), use a `Theme.Material3.*` parent and
+declare the corresponding M3 attributes — the SDK reads all of them.
+Slots not declared in your theme fall back to the IGI default
+palette (Navy + Gold) — same fallback the SDK shipped before the
+bridge.
+
+### Light/dark detection
+
+The bridge reads `?android:isLightTheme` and returns a
+`lightColorScheme` or `darkColorScheme` accordingly. Hosts on a
+DayNight theme parent get auto-switched alongside the system; hosts
+on a fixed `Theme.AppCompat.Light.*` stay light regardless of the
+system dark-mode setting.
+
+### Cross-platform parity
+
+Android `MaterialTheme.colorScheme` slots map to the same role
+names as the iOS `IGI_KEY_*_COLOR` theme dictionary keys (primary,
+secondary, onPrimary, background, etc.). Both SDKs source from the
+same product palette per team — declared in
+`themes.xml` / `colors.xml` on Android, in the
+`IGIManager.themeDictionary` on iOS.
 
 ## Required `AndroidManifest.xml`
-
-In addition to the service registration and permissions shown
-above:
 
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
@@ -346,12 +409,71 @@ above:
     android:label="@string/app_name"
     android:theme="@style/AppTheme"
     ...>
-    <!-- SDK activity (optional — only if launching via Intent) -->
+
+    <!-- SDK entry point. `exported="true"` + the intent-filter let
+         the OS deliver tapped IGI push notifications here directly
+         (see "Push notifications" above). If your host doesn't ship
+         IGI push deep-linking, drop the intent-filter and set
+         `exported="false"`. -->
     <activity
         android:name="com.igotitinc.sdk.ui.mainTabs.IGIMainActivity"
-        android:exported="false" />
+        android:exported="true">
+        <intent-filter>
+            <action android:name="IGI_PUSH_DEEPLINK" />
+            <category android:name="android.intent.category.DEFAULT" />
+        </intent-filter>
+    </activity>
+
+    <!-- FCM forwarder — see "Push notifications" #2 above. -->
+    <service
+        android:name=".firebase.FirebaseMessagingForwarder"
+        android:exported="false">
+        <intent-filter>
+            <action android:name="com.google.firebase.MESSAGING_EVENT" />
+        </intent-filter>
+    </service>
 </application>
 ```
+
+## Deep links / Universal links
+
+Deep-link handling is host-owned (Branch SDK in our reference host;
+your app may use a different provider). The SDK does not register
+URL schemes or app-link intent filters. The single SDK touchpoint
+is forwarding the resolved item identifier:
+
+```kotlin
+// After Branch (or your URL handler) resolves the deep link to
+// an `event_item_id`:
+sdk.handleDeeplinkUrl(deeplink)
+```
+
+For pushes, `handleRemoteMessage` (see "Push notifications" above)
+covers the same routing.
+
+## Versioning
+
+`MAJOR.MINOR.PATCH` semver, with a build-number suffix
+(`+yyMMddNN`) baked into the AAR. `4.0.0` is the first release of
+the Kotlin-canonical SDK; prior `3.x` releases shipped the
+now-removed Java + XML implementation and are not source-compatible
+with `4.x`.
+
+Cross-platform features ship at the same `MAJOR.MINOR.PATCH` on
+Android and iOS. Platform-only patches may diverge by a PATCH
+version between releases — partners shipping both platforms pin
+each platform at its own latest:
+
+| Platform | Latest |
+|---|---|
+| Android (this SDK) | `io.metabilia:igi_sdk:4.0.1` on Maven Central |
+| iOS  | `Metabilia-io/igi_sdk_ios` at `4.0.0` (SwiftPM) |
+
+`4.0.1` is an Android-only patch landing the host-theme bridge in
+`IGIMainActivity` (see **Theming** above). The iOS SDK's theming
+mechanism is unaffected, so iOS stays at `4.0.0`. The next
+cross-platform feature will rejoin the platforms at the same
+version.
 
 ## Migrating from 3.x to 4.0.0
 
@@ -461,7 +583,7 @@ the `IGIManagerCallback` construction syntax + the error type:
 ```diff
   IGIManager.getInstance().initialize(
       apiKey,
-      IGIManager.IGI_SDK_PRODUCTION_MODE,
+      IGIManager.IGI_SDK_SANDBOX_MODE,
       subDomain,
       this,
 -     IGIManagerCallback(function = { _, error: Error? ->
@@ -481,8 +603,8 @@ existing `error.localizedMessage` access keeps working since
 `Throwable` exposes that too. The `IGIManager.IGI_SDK_*_MODE`
 string constants are preserved on `IGIManager`'s companion in
 4.0.0 specifically so legacy call sites compile unchanged. New
-code can switch to the typed `IGIEnvironment.PRODUCTION` enum
-(also accepted by an overload of `initialize`).
+code can switch to the typed `IGIEnvironment.SANDBOX` enum (also
+accepted by an overload of `initialize`).
 
 #### 5. `IGIAnalyticsListener`
 
@@ -559,12 +681,23 @@ matching iOS naming.
 #### 7. Cold-start push handling: replacing `isIGIPayload(Bundle)`
 
 Legacy SDK exposed `IGIManager.getInstance().isIGIPayload(extras)`
-which took a `Bundle` — useful for cold-start launches where the
-notification tap puts the payload on the Activity's launching
-Intent extras. The 4.0.0 SDK exposes the canonical
+which took a `Bundle` — partners called it from the activity that
+caught the cold-start tap intent. The 4.0.0 SDK exposes
 `shouldHandleRemoteMessage(data: Map<String, String>?)` instead
-(matches iOS `shouldHandleRemodeMessage`), so project the Bundle
-to a Map first:
+(matches iOS `shouldHandleRemodeMessage`); the `Bundle` overload
+is gone.
+
+The simpler 4.0.0 path: declare the
+`<action android:name="IGI_PUSH_DEEPLINK" />` intent-filter
+**directly on `IGIMainActivity`** in your manifest. `IGIMainActivity`
+inspects its own intent extras in `onCreate` and calls
+`shouldHandleRemoteMessage` / `handleRemoteMessage` internally — no
+glue code needed in your host. See **Push notifications** above for
+the canonical wiring.
+
+If you still need a router activity (custom auth check, analytics,
+etc.), update the legacy call site to project the Bundle to a Map
+and use `shouldHandleRemoteMessage` first:
 
 ```diff
 - if (IGIManager.getInstance().isIGIPayload(extras)) {
@@ -652,22 +785,53 @@ isn't reachable through `IGIMainActivity`'s tabs, file an issue
 on `Metabilia-io/igi_sdk_android` and we'll surface it as a
 public composable.
 
+### Behavior changes (no code edits required)
+
+| Layer | 3.x | 4.0.0 |
+|---|---|---|
+| Token storage | Plaintext `SharedPreferences` (`IGotItUserSessionKey`) | `EncryptedSharedPreferences` via `IGITokenStore`. One-shot migration on first 4.x launch reads the legacy key, copies into Encrypted store, deletes plaintext. |
+| HTTP auth | `?access_token=…` query parameter | `Authorization: <token>` header (raw token, no `Bearer ` prefix). |
+| Identity headers | `igi_sdk_version` (underscores) | `igi-sdk-version` (hyphens). nginx and similar proxies strip underscore-named headers by default. |
+| Environments | Two: staging + prod | **Three**: `IGIEnvironment.DEVELOPMENT`, `.SANDBOX`, `.PRODUCTION`. |
+| UI implementation | `Fragment` + XML | Jetpack Compose. `IGIMainActivity` wraps it for `Intent`-style hosting. |
+
+### APIs that haven't changed (call sites unchanged after the import update)
+
+- `IGIManager.getInstance()` — parameterless singleton accessor
+- `IGIManager.getInstance().setAnalyticsListener(...)`
+- `IGIManager.getInstance().setDeviceToken(...)`
+- `IGIManager.getInstance().handleRemoteMessage(...) → Boolean`
+- `IGIManager.getInstance().handleDeeplinkUrl(...)`
+- `IGIManager.IGI_SDK_DEV_MODE` / `IGI_SDK_SANDBOX_MODE` / `IGI_SDK_PRODUCTION_MODE` string constants (preserved on the companion for legacy compat)
+- 70+ legacy callback-style methods on `IGIManager` (`login`, `bidOnItem`, `signUp`, etc.) — preserved via the callback-style facade so legacy call sites keep compiling.
+
 ### Validation reference
 
 A complete worked migration from a real 3.x integration is in
-[`IGISampleApp_android/`](./IGISampleApp_android/) — sample app
-shipped alongside the SDK in this repo, consuming
-`io.metabilia:igi_sdk:4.0.0` via Maven Central (the same way
-partner hosts integrate). Six files modified —
-`IGISampleApplication.kt`, `MainActivity.kt`, `MainFragment.kt`,
-`AnalyticsManager.kt`, `MyFirebaseMessagingService.kt`,
-`AndroidManifest.xml` — plus the `packaging { ... }` block +
-Maven dependency line in `app/build.gradle` and the
-`mavenCentral()`-only repo block in the root `build.gradle`.
-Cover every change in this guide.
+`IGISampleApp_android/` (in the parent workspace). Six files
+modified — `IGISampleApplication.kt`, `MainActivity.kt`,
+`MainFragment.kt`, `AnalyticsManager.kt`,
+`MyFirebaseMessagingService.kt`, `AndroidManifest.xml` — plus the
+`packaging { ... }` block + Maven dependency line in
+`app/build.gradle` and the credentials swap in the root
+`build.gradle`. Cover every change in this guide.
 
 ## Reporting issues
 
 For SDK-level bugs / feature requests, file an issue on
 `Metabilia-io/igi_sdk_android`. For credentials, environment
 access, or API-key provisioning, contact Metabilia ops directly.
+
+---
+
+> **Security note (publishers only):** consumers don't need any
+> credentials — Maven Central downloads are anonymous. Publishing
+> the SDK to Maven Central does require Sonatype Central Portal
+> tokens + a GPG signing keypair; both belong in
+> `~/.gradle/gradle.properties` (gitignored), never in any file
+> committed to the repo. During the GitHub-Packages era (pre-Phase D),
+> two leaked GitHub PATs were rotated during the Android distribution
+> prep (2026-05-02 — one in the legacy SDK module's `build.gradle`,
+> one in `IGISampleApp_android/build.gradle`); both files use the
+> env-var pattern now and the PATs themselves are obsolete since the
+> repo coordinate moved to `mavenCentral()` in Phase D.

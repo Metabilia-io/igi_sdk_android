@@ -3,15 +3,7 @@
 Embeds the Metabilia / IGI consumer experience (events, marketplace,
 auctions, wishlist, mystery boxes, account history) into a host
 Android app as a Jetpack Compose surface. Distributed as an AAR via
-Maven (GitHub Packages).
-
-> **Companion guide for iOS:** see
-> [`Metabilia-io/igi_sdk_ios` → `README.md`](https://github.com/Metabilia-io/igi_sdk_ios/blob/main/README.md).
-> Both platforms expose the same public types and use byte-identical
-> analytics-event names and theming-token keys. Cross-platform
-> features ship at the same `MAJOR.MINOR.PATCH` on both sides;
-> platform-only patches may diverge by a PATCH version.
-> See **Versioning** below for the current version on each platform.
+Maven Central.
 
 ## Requirements
 
@@ -64,21 +56,17 @@ and subdomain — all three come from Metabilia ops.
 import android.app.Application
 import com.google.firebase.messaging.FirebaseMessaging
 import com.igotitinc.sdk.IGIManager
-import com.igotitinc.sdk.IGISdk
 import com.igotitinc.sdk.config.IGIEnvironment
 
 class MyApp : Application() {
-
-    private val manager: IGIManager by lazy { IGIManager.getInstance() }
-    private val sdk: IGISdk get() = manager.sdk
 
     override fun onCreate() {
         super.onCreate()
 
         // Captures `applicationContext` for the SDK's internal DI
-        // container and runs `IGISdk.initialize`. Must run before
-        // any other manager / sdk access in this process.
-        manager.initialize(
+        // container. Must run before any other `IGIManager.getInstance()`
+        // call in this process.
+        IGIManager.getInstance().initialize(
             apiKey = BuildConfig.IGI_API_KEY,
             environment = IGIEnvironment.PRODUCTION,
             subDomain = "<SUBDOMAIN_FROM_METABILIA>",
@@ -87,7 +75,7 @@ class MyApp : Application() {
 
         // Active FCM token fetch — see "Push notifications" below.
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            if (task.isSuccessful) sdk.setDeviceToken(task.result)
+            if (task.isSuccessful) IGIManager.getInstance().setDeviceToken(task.result)
         }
     }
 }
@@ -101,12 +89,11 @@ Register the Application class in your `AndroidManifest.xml`:
     ...>
 ```
 
-The three valid `IGIEnvironment` values are:
+The valid `IGIEnvironment` values are:
 
 | Environment | Constant |
 |---|---|
 | Development | `IGIEnvironment.DEVELOPMENT` |
-| Sandbox / Staging | `IGIEnvironment.SANDBOX` |
 | Production | `IGIEnvironment.PRODUCTION` |
 
 > **Legacy 3.x parity:** `IGIManager.getInstance()` is parameterless,
@@ -230,20 +217,20 @@ push arrives while the app is open.
 ```kotlin
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import com.igotitinc.sdk.di.getIGISdk
+import com.igotitinc.sdk.IGIManager
 
 class FirebaseMessagingForwarder : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
-        getIGISdk(applicationContext).setDeviceToken(token)
+        IGIManager.getInstance().setDeviceToken(token)
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         val data = remoteMessage.data
         if (data.isEmpty()) return
-        val sdk = getIGISdk(applicationContext)
-        if (sdk.shouldHandleRemoteMessage(data)) {
-            sdk.handleRemoteMessage(data)
+        val manager = IGIManager.getInstance()
+        if (manager.shouldHandleRemoteMessage(data)) {
+            manager.handleRemoteMessage(data)
         }
         // Non-IGI pushes: handle here if your app dispatches its own.
     }
@@ -583,7 +570,7 @@ the `IGIManagerCallback` construction syntax + the error type:
 ```diff
   IGIManager.getInstance().initialize(
       apiKey,
-      IGIManager.IGI_SDK_SANDBOX_MODE,
+      IGIManager.IGI_SDK_PRODUCTION_MODE,
       subDomain,
       this,
 -     IGIManagerCallback(function = { _, error: Error? ->
@@ -603,8 +590,8 @@ existing `error.localizedMessage` access keeps working since
 `Throwable` exposes that too. The `IGIManager.IGI_SDK_*_MODE`
 string constants are preserved on `IGIManager`'s companion in
 4.0.0 specifically so legacy call sites compile unchanged. New
-code can switch to the typed `IGIEnvironment.SANDBOX` enum (also
-accepted by an overload of `initialize`).
+code can switch to the typed `IGIEnvironment.PRODUCTION` enum
+(also accepted by an overload of `initialize`).
 
 #### 5. `IGIAnalyticsListener`
 
@@ -792,7 +779,7 @@ public composable.
 | Token storage | Plaintext `SharedPreferences` (`IGotItUserSessionKey`) | `EncryptedSharedPreferences` via `IGITokenStore`. One-shot migration on first 4.x launch reads the legacy key, copies into Encrypted store, deletes plaintext. |
 | HTTP auth | `?access_token=…` query parameter | `Authorization: <token>` header (raw token, no `Bearer ` prefix). |
 | Identity headers | `igi_sdk_version` (underscores) | `igi-sdk-version` (hyphens). nginx and similar proxies strip underscore-named headers by default. |
-| Environments | Two: staging + prod | **Three**: `IGIEnvironment.DEVELOPMENT`, `.SANDBOX`, `.PRODUCTION`. |
+| Environments | `staging` / `prod` string flags | Typed enum `IGIEnvironment.DEVELOPMENT` / `.PRODUCTION` (legacy `IGI_SDK_*_MODE` string constants preserved on `IGIManager` for compat). |
 | UI implementation | `Fragment` + XML | Jetpack Compose. `IGIMainActivity` wraps it for `Intent`-style hosting. |
 
 ### APIs that haven't changed (call sites unchanged after the import update)
@@ -802,7 +789,7 @@ public composable.
 - `IGIManager.getInstance().setDeviceToken(...)`
 - `IGIManager.getInstance().handleRemoteMessage(...) → Boolean`
 - `IGIManager.getInstance().handleDeeplinkUrl(...)`
-- `IGIManager.IGI_SDK_DEV_MODE` / `IGI_SDK_SANDBOX_MODE` / `IGI_SDK_PRODUCTION_MODE` string constants (preserved on the companion for legacy compat)
+- `IGIManager.IGI_SDK_DEV_MODE` / `IGI_SDK_PRODUCTION_MODE` string constants (preserved on the companion for legacy compat)
 - 70+ legacy callback-style methods on `IGIManager` (`login`, `bidOnItem`, `signUp`, etc.) — preserved via the callback-style facade so legacy call sites keep compiling.
 
 ### Validation reference
@@ -821,17 +808,3 @@ modified — `IGISampleApplication.kt`, `MainActivity.kt`,
 For SDK-level bugs / feature requests, file an issue on
 `Metabilia-io/igi_sdk_android`. For credentials, environment
 access, or API-key provisioning, contact Metabilia ops directly.
-
----
-
-> **Security note (publishers only):** consumers don't need any
-> credentials — Maven Central downloads are anonymous. Publishing
-> the SDK to Maven Central does require Sonatype Central Portal
-> tokens + a GPG signing keypair; both belong in
-> `~/.gradle/gradle.properties` (gitignored), never in any file
-> committed to the repo. During the GitHub-Packages era (pre-Phase D),
-> two leaked GitHub PATs were rotated during the Android distribution
-> prep (2026-05-02 — one in the legacy SDK module's `build.gradle`,
-> one in `IGISampleApp_android/build.gradle`); both files use the
-> env-var pattern now and the PATs themselves are obsolete since the
-> repo coordinate moved to `mavenCentral()` in Phase D.

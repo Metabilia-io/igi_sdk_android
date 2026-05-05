@@ -443,7 +443,6 @@ Most call sites need only an import-package update + a small
 - [ ] Replace `IGIManagerCallback(function = { ... })` constructor calls with bare SAM lambdas: `IGIManagerCallback { ... }`. The error parameter type is now `Throwable?` instead of `Error?`.
 - [ ] If you implement `IGIAnalyticsListener`, replace placeholder `p0`/`p1` parameter names with the typed names + drop the `?` from primitives (legacy was `String?`/`Double?`/`Int?`; 4.x.x is non-nullable). The `trackEvent` method's payload type changed from `Bundle?` to `Map<String, Any>`.
 - [ ] If you use `IGIManager.getInstance().privacyStatus` (Java property access) or `IGI_PRIVACY_STATUS.IGI_PRIVACY_STATUS_OPT_IN` constants, switch to the `getPrivacyStatus()` / `setPrivacyStatus(IGIPrivacyStatus.OptIn)` method + enum form.
-- [ ] If you use `IGIManager.shouldHandleRemoteMessage(data)` as a static call, change to `IGIManager.getInstance().shouldHandleRemoteMessage(data)` — it's an instance method now.
 - [ ] If you use `IGIManager.getInstance().isIGIPayload(extras)` (took a Bundle), it was removed. Project the Bundle to `Map<String, String>` and call `shouldHandleRemoteMessage(map)` instead — see code snippet below.
 - [ ] Bump your host's `compileSdk` / `targetSdk` to **36** and `minSdkVersion` to **26**.
 - [ ] If your `app/build.gradle` doesn't already exclude `META-INF/versions/9/OSGI-INF/MANIFEST.MF`, add the `packaging { resources { excludes += [...] } }` block. okhttp 5 + jspecify 1 ship duplicate copies; AGP 8 won't merge them automatically.
@@ -662,20 +661,7 @@ and use `shouldHandleRemoteMessage` first:
   }
 ```
 
-#### 8. `shouldHandleRemoteMessage` is now an instance method
-
-```diff
-  override fun onMessageReceived(remoteMessage: RemoteMessage) {
-      if (remoteMessage.notification != null) {
--         if (IGIManager.shouldHandleRemoteMessage(remoteMessage.data)) {
-+         if (IGIManager.getInstance().shouldHandleRemoteMessage(remoteMessage.data)) {
-              IGIManager.getInstance().handleRemoteMessage(remoteMessage.data)
-          }
-      }
-  }
-```
-
-#### 9. AndroidManifest.xml — IGIMainActivity path
+#### 8. AndroidManifest.xml — IGIMainActivity path
 
 If you declared a `<activity>` for `IGIMainActivity` in your
 manifest (typical when using `tools:replace` to override the
@@ -693,7 +679,7 @@ fully-qualified name:
       android:screenOrientation="portrait" />
 ```
 
-#### 10. `app/build.gradle` packaging exclude
+#### 9. `app/build.gradle` packaging exclude
 
 Required for hosts on AGP 8.x — the new SDK's transitive deps
 (okhttp 5 + jspecify 1) ship duplicate

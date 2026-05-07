@@ -5,26 +5,10 @@
 // `mavenCentral()` resolves it anonymously. This is exactly what
 // partner host apps do; the sample app demonstrates the integration
 // path verbatim.
-//
-// `mavenLocal()` is listed first to support local SDK validation
-// during development. To test an unpublished SDK build:
-//
-//   1. From `android_sdk/`:
-//        ./gradlew :igi_sdk:publishToMavenLocal
-//      Publishes the working-tree SDK to `~/.m2/repository/io/metabilia/igi_sdk/<version>/`.
-//
-//   2. From this directory:
-//        ./gradlew :app:installDebug --refresh-dependencies
-//      Resolves the SDK from `mavenLocal` first; falls back to
-//      `mavenCentral()` for any version not present locally.
-//
-// Drop the `mavenLocal()` line before tagging a real partner-facing
-// release; partners only need `mavenCentral()`.
 
 buildscript {
     ext.kotlin_version = '2.1.20'
     repositories {
-        mavenLocal()
         google()
         mavenCentral()
 
@@ -43,7 +27,6 @@ buildscript {
 
 allprojects {
     repositories {
-        mavenLocal()
         google()
         mavenCentral()
 

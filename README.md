@@ -33,7 +33,7 @@ allprojects {
 
 // app/build.gradle
 dependencies {
-    implementation 'io.metabilia:igi_sdk:4.0.1'
+    implementation 'io.metabilia:igi_sdk:4.0.2'
     // ...your existing deps (Firebase, Branch, etc.)
 }
 ```
@@ -153,8 +153,9 @@ The simplest path is to declare the intent-filter directly on
 ```
 
 `IGIMainActivity.onCreate` inspects `intent.extras` automatically,
-calls `IGISdk.shouldHandleRemoteMessage(...)` / `handleRemoteMessage(...)`,
-and routes to the right screen — no glue code needed in your host.
+calls `IGIManager.getInstance().shouldHandleRemoteMessage(...)` /
+`handleRemoteMessage(...)`, and routes to the right screen — no glue
+code needed in your host.
 The SDK persists the user's auth via `EncryptedSharedPreferences`,
 so the launched session resumes without re-prompting.
 
@@ -257,8 +258,9 @@ a token rotation that happens while the app process is dead can
 leave your host without a fresh value.
 
 Fetch explicitly in `Application.onCreate` (already shown in the
-init snippet above). `IGISdk.setDeviceToken` is idempotent and
-dedup-guarded — calling it on every launch is cheap.
+init snippet above). `IGIManager.getInstance().setDeviceToken(...)`
+is idempotent and dedup-guarded — calling it on every launch is
+cheap.
 
 ### 4. `POST_NOTIFICATIONS` runtime permission (Android 13+)
 
@@ -629,6 +631,22 @@ matching iOS naming.
 
 #### 7. Cold-start push handling: replacing `isIGIPayload(Bundle)`
 
+> **Already on `IGISdk.shouldHandleRemoteMessage(data)`?**
+> That static-form call shape is preserved in 4.x as
+> `IGIManager.shouldHandleRemoteMessage(data)` (added in 4.0.2),
+> so legacy 3.x call sites compile against 4.x with just a class
+> rename:
+>
+> ```diff
+> - IGISdk.shouldHandleRemoteMessage(data)
+> + IGIManager.shouldHandleRemoteMessage(data)
+> ```
+>
+> Java callers go through
+> `IGIManager.Companion.shouldHandleRemoteMessage(data)`. If your
+> 3.x integration is on `isIGIPayload(extras)` (`Bundle`-based),
+> keep reading — the migration is below.
+
 Legacy SDK exposed `IGIManager.getInstance().isIGIPayload(extras)`
 which took a `Bundle` — partners called it from the activity that
 caught the cold-start tap intent. The 4.x SDK exposes
@@ -705,7 +723,7 @@ to merge automatically:
 A complete worked migration from a real 3.x integration is in
 [`IGISampleApp_android/`](./IGISampleApp_android/) — sample app
 shipped alongside the SDK in this repo, consuming
-`io.metabilia:igi_sdk:4.0.1` via Maven Central (the same way
+`io.metabilia:igi_sdk:4.0.2` via Maven Central (the same way
 partner hosts integrate). Files modified —
 `IGISampleApplication.kt`, `MainActivity.kt`, `MainFragment.kt`,
 `AnalyticsManager.kt`, `MyFirebaseMessagingService.kt`,
